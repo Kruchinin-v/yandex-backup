@@ -1,0 +1,6 @@
+*
+!.gitignore
+!modules
+!modules/**
+!main.go
+!README.md
