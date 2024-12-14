@@ -4,3 +4,4 @@
 !modules/**
 !main.go
 !README.md
+!go.mod
