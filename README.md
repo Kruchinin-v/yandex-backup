@@ -12,3 +12,4 @@ The program is needed to make backup copies of files to yandex disk
 | 47046      | Error reading a file to send to disk                                                                                   |
 | 11940      | Failed to create a request to send a file                                                                              |
 | 53076      | Error when sending a file to disk                                                                              |
+| 73121      | Error converting the form to send notification                                                                              |

@@ -13,14 +13,17 @@ import (
 )
 
 type YandexDrive struct {
-	Token             string
-	DirFiles          string
-	FilePrefix        string
-	BackupDir         string
-	YandexDriveApiUrl string
-	Client            *http.Client
-	listFiles         []string
-	uploadUrl         string
+	Token                   string
+	DirFiles                string
+	FilePrefix              string
+	BackupDir               string
+	YandexDriveApiUrl       string
+	Client                  *http.Client
+	NotificationChatId      string
+	NotificationBotToken    string
+	NotificationSubjectLine string
+	listFiles               []string
+	uploadUrl               string
 }
 
 type yandexResponse struct {
@@ -100,7 +103,7 @@ func (yd *YandexDrive) uploadFile(yr yandexResponse, fileName string) {
 	}
 	defer resp.Body.Close()
 	//body, _ := io.ReadAll(resp.Body)
-	
+
 	if resp.StatusCode != 201 {
 		fmt.Println("Error: 53076")
 		os.Exit(1)
@@ -111,6 +114,9 @@ func (yd *YandexDrive) getUploadUrl(fileName string) yandexResponse {
 	url := fmt.Sprintf("%s/upload/?path=app:/%s/%s&overwrite=false", yd.YandexDriveApiUrl, yd.BackupDir, fileName)
 	respCode, respBody := yd.makeRequest(url, "GET")
 	if respCode != 200 {
+		yd.sendMessageAdmin(fmt.Sprintf("Error getting uploadUrl.\n"+
+			"<b>Code</b>: %d, \n<b>Response</b>:\n%s", respCode,
+			string(respBody)), "true")
 		fmt.Printf("Error: 4316%d\n", respCode)
 		os.Exit(1)
 	}
@@ -142,4 +148,35 @@ func (yd *YandexDrive) createRequest(url string, method string) *http.Request {
 			return http.ErrUseLastResponse
 		}}
 	return Request
+}
+
+func (yd *YandexDrive) sendMessageAdmin(message string, alert string) {
+	payload := map[string]interface{}{
+		"chat_id":              yd.NotificationChatId,
+		"text":                 fmt.Sprintf("<b>%s</b>\n%s", yd.NotificationSubjectLine, message),
+		"disable_notification": alert,
+		"parse_mode":           "HTML",
+	}
+	// Преобразуем тело в JSON
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		fmt.Println("Error: 73121")
+		os.Exit(1)
+	}
+	apiUrl := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", yd.NotificationBotToken)
+	req, err := http.NewRequest("POST", apiUrl, bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Println("Error: 73122")
+		os.Exit(1)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Println("Error: 73123")
+		os.Exit(1)
+	}
+	//body, _ := io.ReadAll(resp.Body)
+	//fmt.Println(string(body))
+	resp.Body.Close()
 }
