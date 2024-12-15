@@ -22,6 +22,7 @@ type YandexDrive struct {
 	NotificationChatId      string
 	NotificationBotToken    string
 	NotificationSubjectLine string
+	numberOfElements        int
 	listFiles               []string
 	uploadUrl               string
 }
@@ -40,17 +41,24 @@ func check(e error) {
 func (yd *YandexDrive) findFiles() {
 	files, err := os.ReadDir(yd.DirFiles)
 	if err != nil {
-		fmt.Printf("Ошибка при чтении директории: %v\n", err)
-		return
+		yd.sendMessageAdmin(fmt.Sprintf("Failed to browse the directory with backups:\n"+
+			"%s", yd.DirFiles), "false")
+		fmt.Println("Error: 80261")
+		os.Exit(1)
 	}
 	for _, file := range files {
 		if file.IsDir() {
 			continue
 		}
-
-		if strings.HasPrefix(file.Name(), yd.FilePrefix) {
+		suffix := ".zip"
+		if strings.HasPrefix(file.Name(), yd.FilePrefix) && strings.HasSuffix(file.Name(), suffix) {
 			yd.listFiles = append(yd.listFiles, file.Name())
+			yd.numberOfElements += 1
 		}
+	}
+	if len(yd.listFiles) == 0 {
+		yd.sendMessageAdmin(fmt.Sprintf("No files found for backup in folder %s",
+			yd.BackupDir), "false")
 	}
 }
 
@@ -75,8 +83,11 @@ func (yd *YandexDrive) createBackupDir() {
 	if responseCode == 200 {
 		return
 	}
-	responseCode, _ = yd.makeRequest(url, "PUT")
+	responseCode, responseBody := yd.makeRequest(url, "PUT")
 	if responseCode != 201 {
+		yd.sendMessageAdmin(fmt.Sprintf("<b>Error creating directory on yandex disk</b>\n"+
+			"<b>Code:</b> %d\n"+
+			"<b>Response:</b>\n%s", responseCode, string(responseBody)), "false")
 		fmt.Printf("Error: 4315%d\n", responseCode)
 		os.Exit(1)
 	}
@@ -85,11 +96,14 @@ func (yd *YandexDrive) createBackupDir() {
 func (yd *YandexDrive) uploadFile(yr yandexResponse, fileName string) {
 	data, err := os.ReadFile(path.Join(yd.DirFiles, fileName))
 	if err != nil {
+		yd.sendMessageAdmin(fmt.Sprintf("Error reading backup file"), "false")
 		fmt.Println("Error: 47046")
 		os.Exit(1)
 	}
 	req, err := http.NewRequest(yr.Method, yr.Href, bytes.NewBuffer(data))
 	if err != nil {
+		yd.sendMessageAdmin(fmt.Sprintf("Failed to create a request\n<b>Error:</b>%s", err),
+			"false")
 		fmt.Println("Error: 11940")
 		os.Exit(1)
 	}
@@ -98,13 +112,18 @@ func (yd *YandexDrive) uploadFile(yr yandexResponse, fileName string) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		yd.sendMessageAdmin(fmt.Sprintf("Failed to create a client\n<b>Error:</b>%s", err),
+			"false")
 		fmt.Println("Error: 24946")
 		os.Exit(1)
 	}
 	defer resp.Body.Close()
-	//body, _ := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != 201 {
+		yd.sendMessageAdmin(fmt.Sprintf("Failed to load the file\n<b>Code: </b>%d\n <b>Response:</b>%s",
+			resp.StatusCode, string(body)),
+			"false")
 		fmt.Println("Error: 53076")
 		os.Exit(1)
 	}
@@ -113,10 +132,14 @@ func (yd *YandexDrive) uploadFile(yr yandexResponse, fileName string) {
 func (yd *YandexDrive) getUploadUrl(fileName string) yandexResponse {
 	url := fmt.Sprintf("%s/upload/?path=app:/%s/%s&overwrite=false", yd.YandexDriveApiUrl, yd.BackupDir, fileName)
 	respCode, respBody := yd.makeRequest(url, "GET")
+	if respCode == 409 {
+		yd.sendMessageAdmin(fmt.Sprintf("File %s already exist in disk", fileName), "true")
+		os.Exit(1)
+	}
 	if respCode != 200 {
 		yd.sendMessageAdmin(fmt.Sprintf("Error getting uploadUrl.\n"+
 			"<b>Code</b>: %d, \n<b>Response</b>:\n%s", respCode,
-			string(respBody)), "true")
+			string(respBody)), "false")
 		fmt.Printf("Error: 4316%d\n", respCode)
 		os.Exit(1)
 	}
@@ -150,11 +173,11 @@ func (yd *YandexDrive) createRequest(url string, method string) *http.Request {
 	return Request
 }
 
-func (yd *YandexDrive) sendMessageAdmin(message string, alert string) {
+func (yd *YandexDrive) sendMessageAdmin(message string, disableNotification string) {
 	payload := map[string]interface{}{
 		"chat_id":              yd.NotificationChatId,
 		"text":                 fmt.Sprintf("<b>%s</b>\n%s", yd.NotificationSubjectLine, message),
-		"disable_notification": alert,
+		"disable_notification": disableNotification,
 		"parse_mode":           "HTML",
 	}
 	// Преобразуем тело в JSON
