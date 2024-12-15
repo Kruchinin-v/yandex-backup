@@ -7,6 +7,14 @@ import (
 )
 
 func main() {
+	version := "1.0"
+	if len(os.Args) > 1 {
+		arg := os.Args[1]
+		if arg == "-V" || arg == "--version" {
+			fmt.Println("Version:", version)
+			return
+		}
+	}
 	var token string
 	token = os.Getenv("YANDEX_TOKEN")
 	dirFiles := os.Getenv("BACKUP_DIR")
@@ -32,5 +40,3 @@ func main() {
 	}
 	yandexDriveClient.Backup()
 }
-
-//BaseBuh_backup_2024_11_28_020000_4219621.zip
