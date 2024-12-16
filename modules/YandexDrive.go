@@ -22,6 +22,8 @@ type YandexDrive struct {
 	NotificationChatId      string
 	NotificationBotToken    string
 	NotificationSubjectLine string
+	NotificationEnabled     string
+	NotificationDebug       string
 	numberOfElements        int
 	listFiles               []string
 	uploadUrl               string
@@ -60,9 +62,14 @@ func (yd *YandexDrive) findFiles() {
 		yd.sendMessageAdmin(fmt.Sprintf("No files found for backup in folder %s",
 			yd.BackupDir), "false")
 	}
+	if yd.NotificationDebug == "True" {
+		yd.sendMessageAdmin(fmt.Sprintf("<b>Debug</b>\nfiles:\n%s", yd.listFiles), "true")
+	}
 }
 
 func (yd *YandexDrive) Backup() {
+	yd.sendMessageAdmin(fmt.Sprintf("Debug is %s", yd.NotificationDebug), "true")
+
 	currentDate := time.Now().Format("2006_01_02")
 	yd.FilePrefix = fmt.Sprintf("%s_%s", yd.FilePrefix, currentDate)
 	yd.findFiles()
@@ -73,6 +80,9 @@ func (yd *YandexDrive) Backup() {
 func (yd *YandexDrive) runBackup() {
 	for _, fileName := range yd.listFiles {
 		uploadUrl := yd.getUploadUrl(fileName)
+		if yd.NotificationDebug == "True" {
+			yd.sendMessageAdmin(fmt.Sprintf("<b>Debug</b>\nuploadUrl:\n%s", uploadUrl), "true")
+		}
 		yd.uploadFile(uploadUrl, fileName)
 	}
 }
@@ -110,9 +120,15 @@ func (yd *YandexDrive) uploadFile(yr yandexResponse, fileName string) {
 	req.Header.Set("Authorization", "OAuth "+yd.Token)
 
 	client := &http.Client{}
+	if yd.NotificationDebug == "True" {
+		yd.sendMessageAdmin(fmt.Sprintf("<b>Debug</b>\nStart upload file"), "true")
+	}
 	resp, err := client.Do(req)
+	if yd.NotificationDebug == "True" {
+		yd.sendMessageAdmin(fmt.Sprintf("<b>Debug</b>\nEnd upload file"), "true")
+	}
 	if err != nil {
-		yd.sendMessageAdmin(fmt.Sprintf("Failed to create a client\n<b>Error:</b>%s", err),
+		yd.sendMessageAdmin(fmt.Sprintf("Failed to request\n<b>Error:</b>%s", err),
 			"false")
 		fmt.Println("Error: 24946")
 		os.Exit(1)
@@ -174,6 +190,9 @@ func (yd *YandexDrive) createRequest(url string, method string) *http.Request {
 }
 
 func (yd *YandexDrive) sendMessageAdmin(message string, disableNotification string) {
+	if yd.NotificationEnabled != "True" {
+		return
+	}
 	payload := map[string]interface{}{
 		"chat_id":              yd.NotificationChatId,
 		"text":                 fmt.Sprintf("<b>%s</b>\n%s", yd.NotificationSubjectLine, message),
