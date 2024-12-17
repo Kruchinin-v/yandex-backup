@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	pb "gopkg.in/cheggaaa/pb.v1"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -68,8 +70,6 @@ func (yd *YandexDrive) findFiles() {
 }
 
 func (yd *YandexDrive) Backup() {
-	yd.sendMessageAdmin(fmt.Sprintf("Debug is %s", yd.NotificationDebug), "true")
-
 	currentDate := time.Now().Format("2006_01_02")
 	yd.FilePrefix = fmt.Sprintf("%s_%s", yd.FilePrefix, currentDate)
 	yd.findFiles()
@@ -80,9 +80,6 @@ func (yd *YandexDrive) Backup() {
 func (yd *YandexDrive) runBackup() {
 	for _, fileName := range yd.listFiles {
 		uploadUrl := yd.getUploadUrl(fileName)
-		if yd.NotificationDebug == "True" {
-			yd.sendMessageAdmin(fmt.Sprintf("<b>Debug</b>\nuploadUrl:\n%s", uploadUrl), "true")
-		}
 		yd.uploadFile(uploadUrl, fileName)
 	}
 }
@@ -104,13 +101,24 @@ func (yd *YandexDrive) createBackupDir() {
 }
 
 func (yd *YandexDrive) uploadFile(yr yandexResponse, fileName string) {
-	data, err := os.ReadFile(path.Join(yd.DirFiles, fileName))
-	if err != nil {
-		yd.sendMessageAdmin(fmt.Sprintf("Error reading backup file"), "false")
-		fmt.Println("Error: 47046")
-		os.Exit(1)
+	//data, err := os.ReadFile(path.Join(yd.DirFiles, fileName))
+	//if err != nil {
+	//	yd.sendMessageAdmin(fmt.Sprintf("Error reading backup file"), "false")
+	//	fmt.Println("Error: 47046")
+	//	os.Exit(1)
+	//}
+	file, e := os.Open(path.Join(yd.DirFiles, fileName))
+	if e != nil {
+		log.Fatal("File Error")
 	}
-	req, err := http.NewRequest(yr.Method, yr.Href, bytes.NewBuffer(data))
+	defer file.Close()
+	fi, e := file.Stat()
+	if e != nil {
+		log.Fatal("File Stat Error")
+	}
+	bar := pb.New(int(fi.Size()))
+	bar.Start()
+	req, err := http.NewRequest(yr.Method, yr.Href, bar.NewProxyReader(file))
 	if err != nil {
 		yd.sendMessageAdmin(fmt.Sprintf("Failed to create a request\n<b>Error:</b>%s", err),
 			"false")
@@ -124,6 +132,7 @@ func (yd *YandexDrive) uploadFile(yr yandexResponse, fileName string) {
 		yd.sendMessageAdmin(fmt.Sprintf("<b>Debug</b>\nStart upload file"), "true")
 	}
 	resp, err := client.Do(req)
+	bar.Finish()
 	if yd.NotificationDebug == "True" {
 		yd.sendMessageAdmin(fmt.Sprintf("<b>Debug</b>\nEnd upload file"), "true")
 	}
@@ -149,7 +158,7 @@ func (yd *YandexDrive) getUploadUrl(fileName string) yandexResponse {
 	url := fmt.Sprintf("%s/upload/?path=app:/%s/%s&overwrite=false", yd.YandexDriveApiUrl, yd.BackupDir, fileName)
 	respCode, respBody := yd.makeRequest(url, "GET")
 	if respCode == 409 {
-		yd.sendMessageAdmin(fmt.Sprintf("File %s already exist in disk", fileName), "true")
+		//yd.sendMessageAdmin(fmt.Sprintf("File %s already exist in disk", fileName), "true")
 		os.Exit(1)
 	}
 	if respCode != 200 {

@@ -7,7 +7,7 @@ import (
 )
 
 func main() {
-	version := "1.5"
+	version := "2.0"
 	if len(os.Args) > 1 {
 		arg := os.Args[1]
 		if arg == "-V" || arg == "--version" {
@@ -25,7 +25,6 @@ func main() {
 	notificationSubjectLine := os.Getenv("NOTIFICATION_SUBJECT_LINE")
 	notificationEnabled := os.Getenv("NOTIFICATION_ENABLED")
 	notificationDebug := os.Getenv("NOTIFICATION_DEBUG")
-	fmt.Printf("Degug is %s\n", notificationDebug)
 	if token == "" || dirFiles == "" {
 		fmt.Println("Error: 48045")
 		return
